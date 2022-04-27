@@ -129,7 +129,7 @@ def plot(path_counts, file_name):
 	plt.title("# Distinct Paths vs. Link Rank")
 	ax1.set_xlabel("Rank of Link")
 	ax1.set_ylabel("# Distinct Paths Link is on")
-	plt.savefig("plots/figure_9%s.png" % file_name)
+	plt.savefig("plots/figure_9_%s.png" % file_name)
 
 
 # https://stackoverflow.com/questions/25200220/generate-a-random-derangement-of-a-list
