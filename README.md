@@ -12,7 +12,7 @@ This README contains reproducibility instructions for our project for EN.601.419
 
 1. In count_paths.py, set n as the desired number of switches and d to the number of inter-switch links in the main function.
 2. Run file count_paths.py, with the command:
-    `./pox/pox.py forwarding.l2_learning`
+    `python count_paths.py`
 3. The reproduced figure 9 can then be found in `figure_9_d_{d value}_n_{n value}`.
 
 ### Running Jellyfish in Mininet
