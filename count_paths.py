@@ -211,8 +211,8 @@ def plot_histogram(avg_path_len1, avg_path_len2, fail, file_name):
 	plt.legend(loc="upper left")
 	plt.title("Average Path Length of Protocols")
 	plt.xticks(X, protocols)
-	ax.set_xlabel("Avg. Path Length")
-	ax.set_ylabel("Protocols")
+	ax.set_xlabel("Protocols")
+	ax.set_ylabel("Avg. Path Length")
 	plt.savefig("plots/path lengths/avg_path_len_after_failing_%s_percent_links_%s.png" % (fail, file_name))
 
 
@@ -235,9 +235,24 @@ def random_derangement(n):
             if v[0] != 0:
                 return tuple(v)
 
+
+def aggregate(graph, n, linksToFail):
+	while (linksToFail > 0):
+		e = random.choice(list(graph.edges))
+		graph.remove_edge(e[0], e[1])
+		linksToFail -= 1
+
+	ecmp_paths = compute_ecmp_paths(graph, n)
+	k_shortest_paths = compute_k_shortest_paths(graph, n)
+
+	percent_connected = connectivity(n, ecmp_paths)
+	return percent_connected
+
+
+
 def main():
 	n = 10
-	numHosts = 3 * n
+	num_hosts = 3 * n
 	d = 3
 
 	ecmp_paths = {}
@@ -261,7 +276,7 @@ def main():
 	print("Computing KSP paths...")
 	k_shortest_paths = compute_k_shortest_paths(graph, n)
 
-	traffic_matrix = random_derangement(numHosts)
+	traffic_matrix = random_derangement(num_hosts)
 	all_links = graph.edges()
 	path_counts, avg_path_len1 = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
 	
@@ -272,28 +287,39 @@ def main():
 	print("Connectivity: {:0.2f}%".format(percent_connected))
 
 
-	# now we want to probablistically fail 1% of links
+	# Now we want to probablistically fail 1% of links
 	fail = 0.5
 	linksToFail = round(len(all_links) * fail)
 	if (linksToFail < 1):
 		linksToFail = 1 # fail at least 1 link
 
-	file_name = "after_failing_%s_links_d_%s_n_%s" % (linksToFail, d, n)
+	# For connectivity, run 10 trials and take the average
+	total = 0
+	for i in range(10):
+		graph = networkx.read_adjlist(file_name)
+		total += aggregate(graph, n, linksToFail)
+	avg = total / 10
 
+	file_name = "after_failing_%s_links_d_%s_n_%s" % (linksToFail, d, n)
+	txt_file = file_name + ".txt"
+	with open("./connectivity/" + txt_file, "w") as f:
+		f.write(str(avg))
+
+
+	'''
 	while (linksToFail > 0):
 		e = random.choice(list(graph.edges))
 		graph.remove_edge(e[0], e[1])
 		linksToFail -= 1
+	'''
 
-	# regenerate fig 9
-	# compute avg path length?
-	# test connectivity??
+	# Recalculate link rank and avg. path length based on latest failed link
 	print("Computing ECMP paths...")
 	ecmp_paths = compute_ecmp_paths(graph, n)
 	print("Computing KSP paths...")
 	k_shortest_paths = compute_k_shortest_paths(graph, n)
 
-	traffic_matrix = random_derangement(numHosts)
+	traffic_matrix = random_derangement(num_hosts)
 	all_links = graph.edges()
 	path_counts, avg_path_len2 = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
 	
@@ -304,7 +330,8 @@ def main():
 	print("Connectivity: {:0.2f}%".format(percent_connected))
 
 
-	# Compute average path lengths diff
+
+	# Compute average path lengths before and after failing link
 	file_name = "d_%s_n_%s" % (d, n)
 	print("Plotting average path len...")
 	plot_histogram(avg_path_len1, avg_path_len2, fail * 100, file_name)
