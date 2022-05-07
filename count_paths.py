@@ -1,6 +1,9 @@
+from math import ceil
 import networkx
 import matplotlib as mpl
 import random
+
+import numpy as np
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from itertools import islice
@@ -20,9 +23,12 @@ from itertools import islice
 def compute_ecmp_paths(graph, n):
 	ecmp_paths = {}
 	for a in range(n):
-		for b in range(a+1, n):
-			shortest_paths = networkx.all_shortest_paths(graph, source=str(a), target=str(b))
-			ecmp_paths[(str(a), str(b))] = [p for p in shortest_paths]
+		for b in range(a + 1, n):
+			try:
+				shortest_paths = networkx.all_shortest_paths(graph, source=str(a), target=str(b))
+				ecmp_paths[(str(a), str(b))] = [p for p in shortest_paths]
+			except:
+				continue
 	return ecmp_paths
 
 
@@ -33,11 +39,15 @@ def compute_ecmp_paths(graph, n):
 def compute_k_shortest_paths(graph, n, k=8):
 	k_shortest_paths = {}
 	for a in range(n):
-		for b in range(a+1, n):
+		for b in range(a + 1, n):
 			# slicing before casting to list improves speed
-			ksp = list(islice(networkx.shortest_simple_paths(graph, source=str(a), target=str(b)), k))
-			k_shortest_paths[(str(a), str(b))] = ksp
+			try:
+				ksp = list(islice(networkx.shortest_simple_paths(graph, source=str(a), target=str(b)), k))
+				k_shortest_paths[(str(a), str(b))] = ksp
+			except:
+				continue
 	return k_shortest_paths
+
 
 # ecmp_paths: all equal-cost shortest paths
 # k_shortest_paths: the shortest k paths between two hosts
@@ -54,6 +64,14 @@ def count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links):
 		a, b = link
 		counts[(str(a),str(b))] = {"8-ksp": 0, "8-ecmp": 0, "64-ecmp": 0} 
 		counts[(str(b),str(a))] = {"8-ksp": 0, "8-ecmp": 0, "64-ecmp": 0} 
+
+	avg_path_len = {}
+	total_path_len_8ecmp = 0
+	total_path_len_64ecmp = 0
+	total_path_len_ksp = 0
+	total_paths_8ecmp = 0
+	total_paths_64ecmp = 0
+	total_paths_ksp = 0
 	
 	# iterate through all the hosts, which is the length of the traffic matrix array
 	# assume dest host is the host randomly permutated to the index of the current host 
@@ -71,38 +89,82 @@ def count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links):
 
 		# get all paths from this start node to this dest node
 		# only need the first 64 paths (for ecmp 64-way)
-		paths = ecmp_paths[(str(start_node), str(dest_node))]
-		if len(paths) > 64:
-			paths = paths[:64]
+		try:
+			paths = ecmp_paths[(str(start_node), str(dest_node))]
 
-		for i in range(len(paths)):
-			path = paths[i]
-			prev_node = None
-			for node in path:
-				if not prev_node:
-					prev_node = node
-					continue
+			if len(paths) > 64:
+				paths = paths[:64]
 
-				link = (str(prev_node), str(node))
-				
+			for i in range(len(paths)):
+				path = paths[i]
+
 				if i < 8:
-					counts[link]["8-ecmp"] += 1
+					total_path_len_8ecmp += len(path)
+					total_paths_8ecmp += 1
 
-				counts[link]["64-ecmp"] += 1
-				prev_node = node
+				total_path_len_64ecmp += len(path) # always add to 64-ecmp bc we truncate paths to 64 entries 
+				total_paths_64ecmp += 1
 
-		ksp = k_shortest_paths[(str(start_node), str(dest_node))]
-		for path in ksp:
-			prev_node = None
-			for node in path:
-				if not prev_node:
+				prev_node = None
+				for node in path:
+					if not prev_node:
+						prev_node = node
+						continue
+
+					link = (str(prev_node), str(node))
+					
+					if i < 8:
+						counts[link]["8-ecmp"] += 1
+
+					counts[link]["64-ecmp"] += 1
 					prev_node = node
-					continue
-				link = (str(prev_node), str(node))
-				counts[link]["8-ksp"] += 1
-				prev_node = node
+		except:
+			pass
+
+		try:
+			ksp = k_shortest_paths[(str(start_node), str(dest_node))]
+			for path in ksp:
+				total_path_len_ksp += len(path)
+				total_paths_ksp += 1
+
+				prev_node = None
+
+				for node in path:
+					if not prev_node:
+						prev_node = node
+						continue
+					link = (str(prev_node), str(node))
+					counts[link]["8-ksp"] += 1
+					prev_node = node
+		except:
+			pass
 	
-	return counts
+	avg_path_len["8-ecmp"] = total_path_len_8ecmp / total_paths_8ecmp
+	avg_path_len["64-ecmp"] = total_path_len_64ecmp / total_paths_64ecmp
+	avg_path_len["8-ksp"] = total_path_len_ksp / total_paths_ksp
+
+	return counts, avg_path_len
+
+# n: number of hosts
+def connectivity(n, paths):
+	# matrix of connectivity
+	# m[0][3] denotes whether there is a path from h0 to h3
+	# m[i][i] will always be 1 bc a host can always access itself 
+	m = [[0] * n for i in range(n)]
+	for i in range(n):
+		m[i][i] = 1
+	
+	for i in range(n):
+		for j in range(i + 1, n):
+			if (str(i), str(j)) in paths.keys():
+				m[i][j] = 1
+
+	connected = 0
+	for i in range(n):
+		for j in range(i + 1, n):
+			connected += m[i][j]
+	
+	return connected / (n * (n - 1) / 2)
 
 
 def plot(path_counts, file_name):
@@ -117,19 +179,41 @@ def plot(path_counts, file_name):
 	for _, value in sorted(path_counts.items(), key=lambda x: (x[1]["64-ecmp"], x[0])):
 		ecmp_64_distinct_paths_counts.append(value["64-ecmp"])
 
-	x = range(len(ksp_distinct_paths_counts))
+	X = range(len(ksp_distinct_paths_counts))
 	fig = plt.figure()
-	ax1 = fig.add_subplot(111)
+	ax = fig.add_subplot(111)
 
-	ax1.plot(x, ksp_distinct_paths_counts, color='b', label="8 Shortest Paths")
-	ax1.plot(x, ecmp_64_distinct_paths_counts, color='r', label="64-way ECMP")
-	ax1.plot(x, ecmp_8_distinct_paths_counts, color='g', label="8-way ECMP")
+	ax.plot(X, ksp_distinct_paths_counts, color='b', label="8 Shortest Paths")
+	ax.plot(X, ecmp_64_distinct_paths_counts, color='r', label="64-way ECMP")
+	ax.plot(X, ecmp_8_distinct_paths_counts, color='g', label="8-way ECMP")
 
 	plt.legend(loc="upper left")
 	plt.title("# Distinct Paths vs. Link Rank")
-	ax1.set_xlabel("Rank of Link")
-	ax1.set_ylabel("# Distinct Paths Link is on")
+	ax.set_xlabel("Rank of Link")
+	ax.set_ylabel("# Distinct Paths Link is on")
 	plt.savefig("plots/figure_9_%s.png" % file_name)
+
+
+def plot_histogram(avg_path_len1, avg_path_len2, fail, file_name):
+	protocols = ['8-way ECMP', '64-way ECMP', '8 Shortest Paths']
+	path_len = []
+	path_len.append([avg_path_len1['8-ecmp'], avg_path_len1['64-ecmp'], avg_path_len1['8-ksp']])
+	path_len.append([avg_path_len2['8-ecmp'], avg_path_len2['64-ecmp'], avg_path_len2['8-ksp']])
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111)
+	X = np.arange(len(protocols))
+
+	label = "After failing " + str(fail) + "% links"
+	ax.bar(X - 0.165, path_len[0], width = 0.33, label="Before failing links")
+	ax.bar(X + 0.165, path_len[1], width = 0.33, label=label)
+
+	plt.legend(loc="upper left")
+	plt.title("Average Path Length of Protocols")
+	plt.xticks(X, protocols)
+	ax.set_xlabel("Avg. Path Length")
+	ax.set_ylabel("Protocols")
+	plt.savefig("plots/path lengths/avg_path_len_after_failing_%s_percent_links_%s.png" % (fail, file_name))
 
 
 # https://stackoverflow.com/questions/25200220/generate-a-random-derangement-of-a-list
@@ -152,7 +236,7 @@ def random_derangement(n):
                 return tuple(v)
 
 def main():
-	n = 36
+	n = 10
 	numHosts = 3 * n
 	d = 3
 
@@ -166,6 +250,9 @@ def main():
 	graph = networkx.random_regular_graph(d, n) 
 	
 	# Write graph G in single-line adjacency-list format to path.
+	# Ex. The graph with edges a-b, a-c, d-e is represented as following:
+	# 		a b c # source target target
+	# 		d e
 	networkx.write_adjlist(graph, file_name)
 	graph = networkx.read_adjlist(file_name)
 
@@ -176,10 +263,52 @@ def main():
 
 	traffic_matrix = random_derangement(numHosts)
 	all_links = graph.edges()
-	path_counts = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
+	path_counts, avg_path_len1 = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
 	
 	print("Plotting...")
 	plot(path_counts, file_name)
+
+	percent_connected = connectivity(n, ecmp_paths) * 100
+	print("Connectivity: {:0.2f}%".format(percent_connected))
+
+
+	# now we want to probablistically fail 1% of links
+	fail = 0.5
+	linksToFail = round(len(all_links) * fail)
+	if (linksToFail < 1):
+		linksToFail = 1 # fail at least 1 link
+
+	file_name = "after_failing_%s_links_d_%s_n_%s" % (linksToFail, d, n)
+
+	while (linksToFail > 0):
+		e = random.choice(list(graph.edges))
+		graph.remove_edge(e[0], e[1])
+		linksToFail -= 1
+
+	# regenerate fig 9
+	# compute avg path length?
+	# test connectivity??
+	print("Computing ECMP paths...")
+	ecmp_paths = compute_ecmp_paths(graph, n)
+	print("Computing KSP paths...")
+	k_shortest_paths = compute_k_shortest_paths(graph, n)
+
+	traffic_matrix = random_derangement(numHosts)
+	all_links = graph.edges()
+	path_counts, avg_path_len2 = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
+	
+	print("Plotting...")
+	plot(path_counts, file_name)
+
+	percent_connected = connectivity(n, ecmp_paths) * 100
+	print("Connectivity: {:0.2f}%".format(percent_connected))
+
+
+	# Compute average path lengths diff
+	file_name = "d_%s_n_%s" % (d, n)
+	print("Plotting average path len...")
+	plot_histogram(avg_path_len1, avg_path_len2, fail * 100, file_name)
+
 	
 if __name__ == "__main__":
 	main()
