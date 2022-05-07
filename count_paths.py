@@ -194,7 +194,7 @@ def plot(path_counts, file_name):
 	plt.savefig("plots/figure_9_%s.png" % file_name)
 
 
-def plot_histogram(avg_path_len1, avg_path_len2, fail, file_name):
+def plot_histogram(avg_path_len1, avg_path_len2, failProb, file_name):
 	protocols = ['8-way ECMP', '64-way ECMP', '8 Shortest Paths']
 	path_len = []
 	path_len.append([avg_path_len1['8-ecmp'], avg_path_len1['64-ecmp'], avg_path_len1['8-ksp']])
@@ -204,7 +204,7 @@ def plot_histogram(avg_path_len1, avg_path_len2, fail, file_name):
 	ax = fig.add_subplot(111)
 	X = np.arange(len(protocols))
 
-	label = "After failing " + str(fail) + "% links"
+	label = str(failProb * 100) + "% Chance of Link Failure"
 	ax.bar(X - 0.165, path_len[0], width = 0.33, label="Before failing links")
 	ax.bar(X + 0.165, path_len[1], width = 0.33, label=label)
 
@@ -213,7 +213,7 @@ def plot_histogram(avg_path_len1, avg_path_len2, fail, file_name):
 	plt.xticks(X, protocols)
 	ax.set_xlabel("Protocols")
 	ax.set_ylabel("Avg. Path Length")
-	plt.savefig("plots/path lengths/avg_path_len_after_failing_%s_percent_links_%s.png" % (fail, file_name))
+	plt.savefig("plots/path lengths/avgPathLen_%s.png" % (file_name))
 
 
 # https://stackoverflow.com/questions/25200220/generate-a-random-derangement-of-a-list
@@ -236,11 +236,12 @@ def random_derangement(n):
                 return tuple(v)
 
 
-def aggregate(graph, n, linksToFail):
-	while (linksToFail > 0):
-		e = random.choice(list(graph.edges))
-		graph.remove_edge(e[0], e[1])
-		linksToFail -= 1
+def aggregate(graph, n, failProb):
+	edges = list(graph.edges)
+	for e in edges:
+		rand = random.uniform(0, 1)
+		if (rand <= failProb):
+			graph.remove_edge(e[0], e[1])
 
 	ecmp_paths = compute_ecmp_paths(graph, n)
 	k_shortest_paths = compute_k_shortest_paths(graph, n)
@@ -280,27 +281,25 @@ def main():
 	all_links = graph.edges()
 	path_counts, avg_path_len1 = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
 	
-	print("Plotting...")
+	print("Plotting path counts...")
 	plot(path_counts, file_name)
 
 	percent_connected = connectivity(n, ecmp_paths) * 100
 	print("Connectivity: {:0.2f}%".format(percent_connected))
 
 
-	# Now we want to probablistically fail 1% of links
-	fail = 0.5
-	linksToFail = round(len(all_links) * fail)
-	if (linksToFail < 1):
-		linksToFail = 1 # fail at least 1 link
+	# Now we want to probablistically fail links
+	# Each link has a 0.01 percent chance of failing
+	failProb = 0.1
 
 	# For connectivity, run 10 trials and take the average
-	total = 0
+	total_connectivity = 0
 	for i in range(10):
 		graph = networkx.read_adjlist(file_name)
-		total += aggregate(graph, n, linksToFail)
-	avg = total / 10
+		total_connectivity += aggregate(graph, n, failProb)
+	avg = total_connectivity / 10
 
-	file_name = "after_failing_%s_links_d_%s_n_%s" % (linksToFail, d, n)
+	file_name = "failProb_%s_d_%s_n_%s" % (failProb, d, n)
 	txt_file = file_name + ".txt"
 	with open("./connectivity/" + txt_file, "w") as f:
 		f.write(str(avg))
@@ -323,18 +322,16 @@ def main():
 	all_links = graph.edges()
 	path_counts, avg_path_len2 = count_paths(ecmp_paths, k_shortest_paths, traffic_matrix, all_links)
 	
-	print("Plotting...")
+	print("Plotting path counts...")
 	plot(path_counts, file_name)
 
 	percent_connected = connectivity(n, ecmp_paths) * 100
 	print("Connectivity: {:0.2f}%".format(percent_connected))
 
 
-
 	# Compute average path lengths before and after failing link
-	file_name = "d_%s_n_%s" % (d, n)
 	print("Plotting average path len...")
-	plot_histogram(avg_path_len1, avg_path_len2, fail * 100, file_name)
+	plot_histogram(avg_path_len1, avg_path_len2, failProb, file_name)
 
 	
 if __name__ == "__main__":
