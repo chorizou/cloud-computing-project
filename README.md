@@ -9,7 +9,7 @@ This README contains reproducibility instructions for our project for EN.601.419
 * Running Jellyfish topology in Mininet
 * Authors
   
-### Reproducing Fig.9
+### Reproducing Fig. 9
 
 1. `pip3 install networkx`
 2. `pip3 install matplotlib`
