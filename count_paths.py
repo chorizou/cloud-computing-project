@@ -252,9 +252,9 @@ def aggregate(graph, n, failProb):
 
 
 def main():
-	n = 10
+	n = 286
 	num_hosts = 3 * n
-	d = 3
+	d = 11
 
 	ecmp_paths = {}
 	k_shortest_paths = {}
@@ -290,7 +290,7 @@ def main():
 
 	# Now we want to probablistically fail links
 	# Each link has a 0.01 percent chance of failing
-	failProb = 0.1
+	failProb = 0.5
 
 	# For connectivity, run 10 trials and take the average
 	total_connectivity = 0
