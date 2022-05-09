@@ -1,3 +1,5 @@
+# Partners: Aditi Sen (asen6), Charissa Zou (czou9)
+
 from math import ceil
 import networkx
 import matplotlib as mpl
@@ -205,8 +207,11 @@ def plot_histogram(avg_path_len1, avg_path_len2, failProb, file_name):
 	X = np.arange(len(protocols))
 
 	label = str(failProb * 100) + "% Chance of Link Failure"
-	ax.bar(X - 0.165, path_len[0], width = 0.33, label="Before failing links")
-	ax.bar(X + 0.165, path_len[1], width = 0.33, label=label)
+	b1 = ax.bar(X - 0.165, path_len[0], width = 0.33, label="Before failing links")
+	b2 = ax.bar(X + 0.165, path_len[1], width = 0.33, label=label)
+
+	ax.bar_label(b1)
+	ax.bar_label(b2)
 
 	plt.legend(loc="upper left")
 	plt.title("Average Path Length of Protocols")
@@ -236,7 +241,7 @@ def random_derangement(n):
                 return tuple(v)
 
 
-def aggregate(graph, n, failProb):
+def aggregateConnectivity(graph, n, failProb):
 	edges = list(graph.edges)
 	for e in edges:
 		rand = random.uniform(0, 1)
@@ -252,10 +257,12 @@ def aggregate(graph, n, failProb):
 
 
 def main():
-	n = 10
+	n = 286
 	num_hosts = 3 * n
-	d = 3
+	d = 11
 
+	prob = [0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.1, 0.15, 0.2, 0.3, 0.4]
+	# for p in prob:
 	ecmp_paths = {}
 	k_shortest_paths = {}
 	file_name = "d_%s_n_%s" % (d, n)
@@ -290,20 +297,20 @@ def main():
 
 	# Now we want to probablistically fail links
 	# Each link has a 0.01 percent chance of failing
-	failProb = 0.1
+	failProb = 0.01
+	# failProb = p
 
 	# For connectivity, run 10 trials and take the average
 	total_connectivity = 0
 	for i in range(10):
 		graph = networkx.read_adjlist(file_name)
-		total_connectivity += aggregate(graph, n, failProb)
+		total_connectivity += aggregateConnectivity(graph, n, failProb)
 	avg = total_connectivity / 10
 
 	file_name = "failProb_%s_d_%s_n_%s" % (failProb, d, n)
 	txt_file = file_name + ".txt"
 	with open("./connectivity/" + txt_file, "w") as f:
 		f.write(str(avg))
-
 
 	'''
 	while (linksToFail > 0):
