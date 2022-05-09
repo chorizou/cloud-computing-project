@@ -4,11 +4,13 @@ This README contains reproducibility instructions for our project for EN.601.419
 
 ## Summary
 * Reproducing Figure 9
+* Finding average path length before and after link failure
+* Finding network connectivity before and after link failure
 * Running Jellyfish topology in Mininet
 * Authors
 * Acknowledgement 
   
-### Reproducing Fig.9
+### Reproducing Fig. 9
 
 1. In count_paths.py, set n as the desired number of switches and d to the number of inter-switch links in the main function.
 2. Run file count_paths.py, with the command:
