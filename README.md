@@ -13,7 +13,21 @@ This README contains reproducibility instructions for our project for EN.601.419
 1. In count_paths.py, set n as the desired number of switches and d to the number of inter-switch links in the main function.
 2. Run file count_paths.py, with the command:
     `python count_paths.py`
-3. The reproduced figure 9 can then be found in `figure_9_d_{d value}_n_{n value}`.
+3. The reproduced figure 9 can then be found in `figure_9_d_{d value}_n_{n value}.png` in the plots folder.
+
+### Finding average path length before and after link failure
+1. In count_paths.py, set n as the desired number of switches and d to the number of inter-switch links in the main function.
+2. Set failProb as the probability of failure for each link.
+3. Run file count_paths.py, with the command:
+    `python count_paths.py`
+3. The average path length can then be found in `avgPathLen_failProb_{fail prob value}_d_{d value}_n_{n value}.png` in the plots/path lengths folder.
+
+### Finding network connectivity before and after link failure
+1. In count_paths.py, set n as the desired number of switches and d to the number of inter-switch links in the main function.
+2. Set failProb as the probability of failure for each link.
+3. Run file count_paths.py, with the command:
+    `python count_paths.py`
+3. The connectivity will be printed on Terminal, but can also be found in `failProb_{fail prob value}_d_{d value}_n_{n value}.txt` in the connectivity lengths folder.
 
 ### Running Jellyfish in Mininet
 
